@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>PeakEGE — Тренажёр ЕГЭ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0F172A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+/* === ПЕРЕМЕННЫЕ И БАЗА (PEAKEGE THEME) === */
+:root {
+  --bg: #0F172A;       /* Глубокий темно-синий */
+  --surf: #1E293B;     /* Поверхность */
+  --surf2: #334155;    /* Вторичная поверхность */
+  --tx: #F8FAFC;       /* Белый текст */
+  --tx2: #94A3B8;      /* Серый текст */
+  --tx3: #64748B;      /* Темно-серый */
+  --acc: #F97316;      /* Оранжевый пик */
+  --acc-glow: rgba(249, 115, 22, 0.2);
+  --ind: #6366F1;      /* Индиго */
+  --line: rgba(148, 163, 184, 0.1);
+  
+  --math: #38BDF8; 
+  --rus: #F472B6; 
+  --inf: #A3E635;
+  
+  --sat: env(safe-area-inset-top, 0px);
+  --tbh: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { font-family: -apple-system, 'SF Pro Display', 'Inter', sans-serif; background: var(--bg); color: var(--tx); overflow: hidden; height: 100dvh; }
+button { font-family: inherit; border: none; background: none; color: inherit; cursor: pointer; }
+input { font-family: inherit; color: inherit; }
+
+/* === ONBOARDING (РЕГИСТРАЦИЯ) === */
+#onboarding {
+  position: fixed; inset: 0; z-index: 100;
+  background: radial-gradient(circle at 50% 10%, #1e1b4b, #0F172A 80%);
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: 32px; text-align: center;
+  transition: opacity .5s, transform .5s;
+}
+#onboarding.hidden { opacity: 0; pointer-events: none; transform: scale(1.05); }
+
+.ob-logo { 
+  width: 88px; height: 88px; border-radius: 28px; 
+  background: linear-gradient(135deg, #4F46E5, #F97316); 
+  display: flex; align-items: center; justify-content: center; 
+  font-size: 42px; margin-bottom: 28px; 
+  box-shadow: 0 16px 48px rgba(249, 115, 22, 0.25);
+}
+.ob-title { font-size: 32px; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.5px; }
+.ob-title span { color: var(--acc); }
+.ob-sub { color: var(--tx2); font-size: 16px; margin-bottom: 36px; line-height: 1.5; max-width: 300px; }
+
+.ob-input {
+  width: 100%; max-width: 320px; height: 58px; border-radius: 18px;
+  background: var(--surf); border: 1.5px solid var(--line);
+  padding: 0 24px; font-size: 18px; font-weight: 600; outline: none;
+  margin-bottom: 28px; text-align: center; transition: .2s;
+}
+.ob-input:focus { border-color: var(--acc); box-shadow: 0 0 0 4px var(--acc-glow); }
+.ob-input::placeholder { color: var(--tx3); }
+
+.ob-label { font-size: 12px; font-weight: 800; color: var(--tx3); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px; width: 100%; max-width: 320px; text-align: left; }
+.ob-chips { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 36px; max-width: 340px; }
+.ob-chip {
+  padding: 14px 22px; border-radius: 16px; font-size: 14px; font-weight: 700;
+  background: var(--surf); border: 1.5px solid var(--line); transition: .2s; user-select: none;
+}
+.ob-chip.sel { border-color: var(--acc); background: rgba(249,115,22,.1); color: var(--acc); }
+.ob-chip:active { transform: scale(.96); }
+
+.ob-btn {
+  width: 100%; max-width: 320px; height: 58px; border-radius: 18px;
+  background: linear-gradient(135deg, #FB923C, #EA580C); color: white;
+  font-size: 17px; font-weight: 800; transition: .15s;
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
+}
+.ob-btn:active { transform: scale(.97); }
+.ob-btn.dis { opacity: .4; pointer-events: none; box-shadow: none; }
+
+/* === ПРИЛОЖЕНИЕ === */
+.app { position: fixed; inset: 0; display: flex; flex-direction: column; opacity: 0; transition: opacity .5s; }
+.app.visible { opacity: 1; }
+.screens { flex: 1; overflow-y: auto; padding: calc(var(--sat) + 60px) 16px var(--tbh); -webkit-overflow-scrolling: touch; }
+
+.topbar { position: absolute; top: var(--sat); left: 0; right: 0; height: 56px; display: flex; align-items: center; padding: 0 16px; z-index: 10; }
+.tb-title { font-size: 24px; font-weight: 900; letter-spacing: -0.5px; }
+.tb-title span { color: var(--acc); }
+
+.tabbar {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  padding: 8px 6px env(safe-area-inset-bottom, 20px);
+  background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--line);
+}
+.tab { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; color: var(--tx3); font-size: 10px; font-weight: 700; transition: color .2s; }
+.tab.active { color: var(--acc); }
+.tab svg { width: 24px; height: 24px; fill: currentColor; }
+
+/* Карточки */
+.card { background: var(--surf); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 12px; }
+.greet { font-size: 15px; color: var(--tx2); font-weight: 600; }
+.greet-name { font-size: 28px; font-weight: 900; margin: 4px 0 24px; letter-spacing: -0.5px; }
+
+.subj-card { display: flex; align-items: center; gap: 16px; padding: 18px; cursor: pointer; transition: transform .12s; }
+.subj-card:active { transform: scale(.98); }
+.subj-ic { width: 52px; height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; flex: none; }
+.subj-info { flex: 1; }
+.subj-name { font-size: 16px; font-weight: 800; }
+.subj-desc { font-size: 13px; color: var(--tx3); margin-top: 4px; }
+
+/* Каталог */
+.task-row { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surf); border: 1px solid var(--line); margin-bottom: 10px; cursor: pointer; transition: .15s; }
+.task-row:active { transform: scale(.98); border-color: var(--tx3); }
+.tnum { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex: none; }
+.tname { font-size: 15px; font-weight: 700; line-height: 1.35; }
+.tsub { font-size: 12px; color: var(--tx3); margin-top: 4px; font-weight: 600; }
+
+/* Сессия решения */
+.session { position: fixed; inset: 0; z-index: 50; background: var(--bg); transform: translateX(100%); transition: transform .35s cubic-bezier(.32,.72,.28,1); display: flex; flex-direction: column; }
+.session.open { transform: none; }
+.ses-head { height: calc(var(--sat) + 56px); padding-top: var(--sat); display: flex; align-items: center; gap: 8px; padding-left: 12px; padding-right: 12px; border-bottom: 1px solid var(--line); background: rgba(15,23,42,.95); backdrop-filter: blur(20px); }
+.ses-back { color: var(--acc); font-weight: 800; font-size: 16px; padding: 8px; display: flex; align-items: center; gap: 4px; }
+.ses-body { flex: 1; overflow-y: auto; padding: 24px 16px 40px; }
+.task-text { font-size: 18px; line-height: 1.7; margin-bottom: 24px; font-weight: 500; }
+.task-text b { color: var(--acc); font-weight: 700; }
+
+.ans-inp { width: 100%; height: 60px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--surf); font-size: 22px; font-weight: 700; text-align: center; outline: none; margin-bottom: 16px; transition: .2s; }
+.ans-inp:focus { border-color: var(--acc); box-shadow: 0 0 0 4px var(--acc-glow); }
+.btn-check { width: 100%; height: 58px; border-radius: 16px; background: linear-gradient(135deg, #FB923C, #EA580C); color: white; font-size: 17px; font-weight: 800; margin-bottom: 20px; box-shadow: 0 8px 20px rgba(249,115,22,.25); }
+.btn-check:active { transform: scale(.97); }
+
+.expl { background: rgba(99, 102, 241, 0.08); border-left: 4px solid var(--ind); border-radius: 0 16px 16px 0; padding: 18px 20px; font-size: 15px; line-height: 1.65; color: var(--tx2); display: none; animation: rise .4s both; }
+.expl.show { display: block; }
+.expl b { color: var(--tx); }
+@keyframes rise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+
+.banner { border-radius: 16px; padding: 16px; display: flex; gap: 14px; align-items: center; margin-bottom: 20px; animation: rise .3s both; }
+.banner.ok { background: rgba(163, 230, 53, 0.1); border: 1px solid rgba(163, 230, 53, 0.3); }
+.banner.bad { background: rgba(244, 114, 182, 0.1); border: 1px solid rgba(244, 114, 182, 0.3); }
+.banner .bt { font-weight: 800; font-size: 16px; }
+.banner.ok .bt { color: #A3E635; } .banner.bad .bt { color: #F472B6; }
+
+/* Профиль */
+.profile-head { display: flex; align-items: center; gap: 18px; margin-bottom: 28px; }
+.avatar { width: 72px; height: 72px; border-radius: 24px; background: linear-gradient(135deg, #6366F1, #F97316); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 28px; flex: none; box-shadow: 0 12px 32px rgba(99,102,241,.3); }
+.p-name { font-size: 26px; font-weight: 900; letter-spacing: -0.5px; }
+.p-sub { font-size: 14px; color: var(--tx3); margin-top: 4px; font-weight: 600; }
+
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.stat-card { padding: 18px; }
+.stat-v { font-size: 28px; font-weight: 900; margin-top: 6px; letter-spacing: -0.5px; }
+.stat-l { font-size: 11px; color: var(--tx3); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+
+.reset-btn { width: 100%; height: 52px; border-radius: 16px; background: rgba(244,114,182,.08); border: 1px solid rgba(244,114,182,.2); color: #F472B6; font-size: 15px; font-weight: 700; margin-top: 16px; transition: .15s; }
+.reset-btn:active { transform: scale(.97); }
+.reset-full { margin-top: 12px; color: var(--tx3); background: var(--surf); border-color: var(--line); }
+</style>
+</head>
+<body>
+
+<!-- ===== РЕГИСТРАЦИЯ ===== -->
+<div id="onboarding">
+  <div class="ob-logo">⛰️</div>
+  <div class="ob-title">Peak<span>EGE</span></div>
+  <div class="ob-sub">Достигни вершины баллов.<br>Настрой приложение под себя за 10 секунд.</div>
+  
+  <input class="ob-input" id="obName" type="text" placeholder="Как тебя зовут?" maxlength="20" autocomplete="off">
+  
+  <div class="ob-label">Выбери предметы</div>
+  <div class="ob-chips" id="obChips">
+    <div class="ob-chip" data-s="math">📐 Математика</div>
+    <div class="ob-chip" data-s="rus">✍️ Русский</div>
+    <div class="ob-chip" data-s="inf">💻 Информатика</div>
+  </div>
+  
+  <button class="ob-btn dis" id="obBtn">Начать восхождение</button>
+</div>
+
+<!-- ===== ПРИЛОЖЕНИЕ ===== -->
+<div class="app" id="app">
+  <header class="topbar"><div class="tb-title">Peak<span>EGE</span></div></header>
+  
+  <main class="screens" id="screens"></main>
+  
+  <nav class="tabbar">
+    <button class="tab active" data-tab="home">
+      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      Главная
+    </button>
+    <button class="tab" data-tab="catalog">
+      <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>
+      Задачи
+    </button>
+    <button class="tab" data-tab="profile">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      Профиль
+    </button>
+  </nav>
+</div>
+
+<!-- ===== РЕШЕНИЕ ===== -->
+<div class="session" id="session">
+  <div class="ses-head">
+    <button class="ses-back" id="sesBack">← Назад</button>
+    <div style="flex:1;text-align:center;font-weight:800;font-size:15px" id="sesTitle"></div>
+    <div style="width:40px"></div>
+  </div>
+  <div class="ses-body" id="sesBody"></div>
+</div>
+
+<script>
+// ================= ДАННЫЕ =================
+const SUBJ = {
+  math: { name: 'Математика', color: '#38BDF8', glyph: 'π' },
+  rus:  { name: 'Русский язык', color: '#F472B6', glyph: 'Аа' },
+  inf:  { name: 'Информатика', color: '#A3E635', glyph: '</>' }
+};
+
+const TASKS = [
+  // МАТЕМАТИКА
+  {id:'m1',s:'math',n:1,topic:'Планиметрия',t:'В треугольнике ABC угол C = 90°, AB = 10, sin A = 0,8. Найдите BC.',a:'8',
+   expl:'sin A = противолежащий катет / гипотенуза = BC / AB.\nBC = AB · sin A = 10 · 0,8 = <b>8</b>.'},
+  {id:'m2',s:'math',n:3,topic:'Стереометрия',t:'Два ребра прямоугольного параллелепипеда равны 2 и 6. Объём равен 48. Найдите третье ребро.',a:'4',
+   expl:'V = a·b·c → 48 = 2·6·c → 48 = 12c → c = <b>4</b>.'},
+  {id:'m3',s:'math',n:4,topic:'Вероятность',t:'В такси свободно 20 машин: 10 чёрных, 2 жёлтых, 8 зелёных. Какова вероятность, что приедет жёлтое?',a:'0,1',
+   expl:'P = благоприятные / все = 2 / 20 = <b>0,1</b>.'},
+  {id:'m4',s:'math',n:5,topic:'Вероятность (сложная)',t:'Вероятность, что кофе закончится в автомате, равна 0,3. Вероятность, что закончится в обоих — 0,12. Найдите вероятность, что кофе останется в обоих.',a:'0,52',
+   expl:'P(хотя бы один) = 0,3 + 0,3 − 0,12 = 0,48.\nP(останется в обоих) = 1 − 0,48 = <b>0,52</b>.'},
+  {id:'m5',s:'math',n:6,topic:'Уравнения',t:'Найдите корень уравнения 3^(x−5) = 81.',a:'9',
+   expl:'81 = 3⁴ → x − 5 = 4 → x = <b>9</b>.'},
+  {id:'m6',s:'math',n:7,topic:'Вычисления',t:'Найдите значение выражения (√27 − √3) · √3.',a:'6',
+   expl:'√27 = 3√3. В скобках: 3√3 − √3 = 2√3.\n2√3 · √3 = 2 · 3 = <b>6</b>.'},
+  // РУССКИЙ ЯЗЫК
+  {id:'r1',s:'rus',n:4,topic:'Ударения',t:'В каком слове ошибка в ударении?\nбаловАть, завИдно, кАшлянуть, обеспЕчение, слИвовый',a:'кашлянуть',
+   expl:'Правильно: кашлян<b>У</b>ть. Ударение всегда на «у».\nОстальные слова произнесены верно.'},
+  {id:'r2',s:'rus',n:5,topic:'Паронимы',t:'Гид посоветовал туристам НАДЕТЬ удобную обувь.\nБабушка попросила внука ОДЕТЬ шапку.\nГде ошибка? Запишите правильное слово.',a:'надеть',
+   expl:'НАДЕТЬ — что-то (шапку). ОДЕТЬ — кого-то (ребёнка).\nОшибка во втором предложении. Правильно: <b>надеть</b> шапку.'},
+  {id:'r3',s:'rus',n:6,topic:'Плеоназм',t:'Мы вернулись обратно домой поздним вечером.\nИсключите лишнее слово.',a:'обратно',
+   expl:'«Вернуться» уже значит «прийти обратно». Это плеоназм.\nЛишнее слово: <b>обратно</b>.'},
+  {id:'r4',s:'rus',n:7,topic:'Формы слова',t:'В одном из слов ошибка: пара НОСКОВ, пять АПЕЛЬСИНОВ, ЛЯГТЕ на пол, ИХ работы.\nИсправьте ошибку.',a:'апельсинов',
+   expl:'Правильно: пять апельсин<b>ОВ</b>. (Род. п., мн. ч. — всегда -ОВ для апельсинов, помидоров, баклажанов).'},
+  // ИНФОРМАТИКА
+  {id:'i1',s:'inf',n:2,topic:'Логика: параметр A',t:'Для какого наименьшего целого A выражение\n(x + 2y < A) ИЛИ (y > x) ИЛИ (x > 30)\nтождественно истинно при любых целых неотрицательных x, y?',a:'91',
+   expl:'Ложь всех частей: y ≤ x, x ≤ 30, x+2y ≥ A.\nМаксимум x+2y при x=y=30: 30+60=90.\nНужно A > 90 → A = <b>91</b>.'},
+  {id:'i2',s:'inf',n:5,topic:'Автомат-исполнитель',t:'Автомат получает трёхзначное число, складывает соседние цифры и записывает суммы по невозрастанию.\nПример: 348 → 7 и 12 → 127.\nНаименьшее число, дающее результат 1512?',a:'693',
+   expl:'1512 → суммы 15 и 12.\na+b=15, b+c=12. Минимизируем a → b=9.\na=6, c=3 → <b>693</b>. Проверка: 6+9=15, 9+3=12 ✓'},
+  {id:'i3',s:'inf',n:11,topic:'Объём информации',t:'Пароль из 10 символов, алфавит 26 букв. Каждый символ — минимальное целое число бит, пароль — целое число байт. Сколько байт для 20 пользователей?',a:'140',
+   expl:'⌈log₂26⌉ = 5 бит/символ.\n10·5 = 50 бит → ⌈50/8⌉ = 7 байт/пароль.\n20 · 7 = <b>140</b> байт.'},
+  {id:'i4',s:'inf',n:16,topic:'Рекурсия',t:'F(n) = 0 при n ≤ 0; F(n) = n + F(n−2) при n > 0.\nЧему равно F(2026)?',a:'1027182',
+   expl:'F(2026) = 2026+2024+…+2 = 2·(1+2+…+1013) = 2·1013·1014/2 = 1013·1014 = <b>1 027 182</b>.'}
+];
+
+// ================= СОСТОЯНИЕ =================
+let state = JSON.parse(localStorage.getItem('peakege_v1') || 'null');
+let currentTab = 'home';
+let currentTask = null;
+
+// ================= РЕГИСТРАЦИЯ =================
+const obEl = document.getElementById('onboarding');
+const obName = document.getElementById('obName');
+const obChips = document.querySelectorAll('.ob-chip');
+const obBtn = document.getElementById('obBtn');
+let selectedSubjects = new Set();
+
+function checkObReady() {
+  const hasName = obName.value.trim().length >= 1;
+  const hasSubj = selectedSubjects.size > 0;
+  obBtn.classList.toggle('dis', !(hasName && hasSubj));
+}
+
+obName.addEventListener('input', checkObReady);
+obChips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    const s = chip.dataset.s;
+    if (selectedSubjects.has(s)) { selectedSubjects.delete(s); chip.classList.remove('sel'); }
+    else { selectedSubjects.add(s); chip.classList.add('sel'); }
+    checkObReady();
+  });
+});
+
+obBtn.addEventListener('click', () => {
+  if (obBtn.classList.contains('dis')) return;
+  state = {
+    name: obName.value.trim(),
+    subjects: [...selectedSubjects],
+    solved: [],
+    streak: 0,
+    lastDate: null
+  };
+  save();
+  finishOnboarding();
+});
+
+function finishOnboarding() {
+  obEl.classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  renderTab('home');
+}
+
+if (state) {
+  obEl.style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  renderTab('home');
+}
+
+// ================= НАВИГАЦИЯ =================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTab = tab.dataset.tab;
+    renderTab(currentTab);
+  });
+});
+
+function renderTab(tab) {
+  const screens = document.getElementById('screens');
+  screens.innerHTML = '';
+  
+  if (tab === 'home') {
+    const solvedCount = state.solved.length;
+    const totalTasks = TASKS.filter(t => state.subjects.includes(t.s)).length;
+    const pct = totalTasks ? Math.round(solvedCount / totalTasks * 100) : 0;
+    
+    screens.innerHTML = `
+      <div class="greet">Привет,</div>
+      <div class="greet-name">${esc(state.name)}! ⛰️</div>
+      <div class="card" style="background:linear-gradient(135deg,#312e81,#4f46e5);border:none;">
+        <div style="font-size:13px;color:#c7d2fe;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Прогресс восхождения</div>
+        <div style="font-size:42px;font-weight:900;margin:8px 0;letter-spacing:-1px;">${pct}%</div>
+        <div style="height:8px;border-radius:4px;background:rgba(255,255,255,.15);overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--acc);border-radius:4px;transition:width .8s;"></div>
+        </div>
+        <div style="font-size:12px;color:#c7d2fe;margin-top:10px;font-weight:600;">${solvedCount} из ${totalTasks} прототипов пройдено</div>
+      </div>
+      <div style="font-size:12px;font-weight:800;color:var(--tx3);text-transform:uppercase;letter-spacing:1.5px;margin:24px 2px 12px;">Твои предметы</div>
+      ${state.subjects.map(s => {
+        const sub = SUBJ[s];
+        const sTasks = TASKS.filter(t => t.s === s);
+        const sSolved = sTasks.filter(t => state.solved.includes(t.id)).length;
+        return `<div class="card subj-card" onclick="goToSubject('${s}')">
+          <div class="subj-ic" style="background:${sub.color}18;color:${sub.color}">${sub.glyph}</div>
+          <div class="subj-info">
+            <div class="subj-name">${sub.name}</div>
+            <div class="subj-desc">${sSolved}/${sTasks.length} задач решено</div>
+          </div>
+          <div style="color:var(--tx3);font-size:18px;">›</div>
+        </div>`;
+      }).join('')}
+    `;
+  } else if (tab === 'catalog') {
+    const filtered = TASKS.filter(t => state.subjects.includes(t.s));
+    if (!filtered.length) {
+      screens.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--tx2)">Нет доступных предметов.<br>Измените настройки в профиле.</div>';
+      return;
+    }
+    let html = '';
+    for (const s of state.subjects) {
+      const sub = SUBJ[s];
+      const tasks = filtered.filter(t => t.s === s);
+      html += `<div style="font-size:12px;font-weight:800;color:${sub.color};text-transform:uppercase;letter-spacing:1.5px;margin:22px 2px 12px;display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:${sub.color}"></span>${sub.name}</div>`;
+      tasks.forEach(t => {
+        const done = state.solved.includes(t.id);
+        html += `<div class="task-row" onclick="openTask('${t.id}')">
+          <div class="tnum" style="background:${sub.color}18;color:${sub.color}">${t.n}</div>
+          <div style="flex:1"><div class="tname">${t.topic}</div><div class="tsub">${done ? '✅ Решено' : 'Не решено'}</div></div>
+        </div>`;
+      });
+    }
+    screens.innerHTML = html;
+  } else if (tab === 'profile') {
+    const solvedCount = state.solved.length;
+    const firstLetter = state.name.charAt(0).toUpperCase();
+    screens.innerHTML = `
+      <div class="profile-head">
+        <div class="avatar">${firstLetter}</div>
+        <div><div class="p-name">${esc(state.name)}</div><div class="p-sub">${state.subjects.map(s => SUBJ[s].name).join(' • ')}</div></div>
+      </div>
+      <div class="stat-grid">
+        <div class="card stat-card"><div class="stat-l">Решено задач</div><div class="stat-v">${solvedCount}</div></div>
+        <div class="card stat-card"><div class="stat-l">Предметов</div><div class="stat-v">${state.subjects.length}</div></div>
+      </div>
+      <div class="card" style="padding:16px 18px;">
+        <div style="font-size:12px;font-weight:800;margin-bottom:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px;">Активные предметы</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${state.subjects.map(s => `<span style="padding:8px 16px;border-radius:12px;background:${SUBJ[s].color}18;color:${SUBJ[s].color};font-size:13px;font-weight:700;">${SUBJ[s].name}</span>`).join('')}
+        </div>
+      </div>
+      <button class="reset-btn" onclick="resetProgress()">Сбросить прогресс решений</button>
+      <button class="reset-btn reset-full" onclick="resetAccount()">Выйти и начать заново</button>
+    `;
+  }
+}
+
+window.goToSubject = function(s) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-tab="catalog"]').classList.add('active');
+  currentTab = 'catalog';
+  renderTab('catalog');
+  setTimeout(() => {
+    const headers = document.querySelectorAll('#screens div[style*="uppercase"]');
+    for (const h of headers) {
+      if (h.textContent.includes(SUBJ[s].name)) { h.scrollIntoView({behavior:'smooth',block:'start'}); break; }
+    }
+  }, 50);
+};
+
+// ================= РЕШЕНИЕ ЗАДАЧ =================
+window.openTask = function(id) {
+  currentTask = TASKS.find(t => t.id === id);
+  if (!currentTask) return;
+  const sub = SUBJ[currentTask.s];
+  document.getElementById('sesTitle').innerHTML = `<span style="color:${sub.color}">№${currentTask.n}</span> · ${sub.name}`;
+  document.getElementById('sesBody').innerHTML = `
+    <div class="task-text">${currentTask.t.replace(/\n/g,'<br>')}</div>
+    <input class="ans-inp" id="ansInp" type="text" placeholder="Ваш ответ" autocomplete="off" inputmode="decimal">
+    <button class="btn-check" id="checkBtn">Проверить ответ</button>
+    <div id="bannerArea"></div>
+    <div class="expl" id="explArea"></div>
+  `;
+  document.getElementById('session').classList.add('open');
+  
+  const inp = document.getElementById('ansInp');
+  const btn = document.getElementById('checkBtn');
+  setTimeout(() => inp.focus(), 350);
+  
+  btn.onclick = () => checkAnswer();
+  inp.onkeydown = (e) => { if (e.key === 'Enter') checkAnswer(); };
+};
+
+document.getElementById('sesBack').onclick = () => {
+  document.getElementById('session').classList.remove('open');
+  currentTask = null;
+  renderTab(currentTab);
+};
+
+function normalizeAns(s) {
+  return s.trim().toLowerCase().replace(/,/g,'.').replace(/\s+/g,'');
+}
+
+function checkAnswer() {
+  if (!currentTask) return;
+  const inp = document.getElementById('ansInp');
+  const banner = document.getElementById('bannerArea');
+  const expl = document.getElementById('explArea');
+  const btn = document.getElementById('checkBtn');
+  
+  const userAns = normalizeAns(inp.value);
+  const correctAns = normalizeAns(currentTask.a);
+  const isCorrect = userAns === correctAns;
+  
+  if (!userAns) { inp.style.borderColor = '#F472B6'; setTimeout(()=>inp.style.borderColor='',600); return; }
+  
+  if (isCorrect) {
+    banner.innerHTML = '<div class="banner ok"><div class="bt">✅ Верно! Отличная работа!</div></div>';
+    expl.innerHTML = currentTask.expl.replace(/\n/g,'<br>');
+    expl.classList.add('show');
+    btn.textContent = 'Закрыть';
+    btn.onclick = () => document.getElementById('sesBack').click();
+    if (!state.solved.includes(currentTask.id)) {
+      state.solved.push(currentTask.id);
+      save();
+    }
+  } else {
+    banner.innerHTML = '<div class="banner bad"><div class="bt">❌ Неверно</div></div>';
+    expl.innerHTML = currentTask.expl.replace(/\n/g,'<br>');
+    expl.classList.add('show');
+    btn.textContent = 'Попробовать ещё';
+    inp.value = '';
+    inp.focus();
+  }
+}
+
+// ================= УТИЛИТЫ =================
+function save() { localStorage.setItem('peakege_v1', JSON.stringify(state)); }
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+window.resetProgress = function() {
+  if (confirm('Сбросить весь прогресс решений? Имя и предметы останутся.')) {
+    state.solved = [];
+    save();
+    renderTab(currentTab);
+  }
+};
+
+window.resetAccount = function() {
+  if (confirm('Удалить аккаунт и начать заново? Весь прогресс будет потерян.')) {
+    localStorage.removeItem('peakege_v1');
+    location.reload();
+  }
+};
+</script>
+</body>
+</html>
