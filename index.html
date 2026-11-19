@@ -338,6 +338,17 @@ input[type="date"]{background:var(--surf2);border:1px solid var(--line);border-r
 .auth .guest{margin-top:11px;text-align:center;font-size:12.5px;color:var(--tx3)}
 .auth .guest button{color:var(--acc);font-weight:700}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* ===== своя буквенная клавиатура + антисдвиг ===== */
+html,body{position:fixed!important;inset:0;width:100%;height:100%;overflow:hidden!important;overscroll-behavior:none}
+.stage{position:fixed!important;inset:0}
+.tk-wrap{display:flex;flex-direction:column;gap:5px;margin-bottom:7px}
+.tk-row{display:flex;gap:4px;justify-content:center}
+.tk-key{flex:1;min-width:0;height:38px;border-radius:8px;background:var(--surf2);border:1px solid var(--line);font-size:15px;font-weight:600;color:var(--tx);display:flex;align-items:center;justify-content:center;user-select:none}
+.tk-key:active{background:color-mix(in srgb,var(--acc) 22%,var(--surf2));transform:scale(.94)}
+.tk-key.wide{flex:1.4;font-size:12px;font-weight:700;color:var(--tx2)}
+.tk-key.wide.on{background:color-mix(in srgb,var(--acc) 18%,transparent);color:var(--acc);border-color:color-mix(in srgb,var(--acc) 45%,transparent)}
+.tk-key.space{flex:3;font-size:11px;color:var(--tx3)}
+@media (max-height:700px){.tk-key{height:33px;font-size:13px}}
 </style>
 </head>
 <body>
@@ -1068,55 +1079,112 @@ init();
 </script>
 <script>
 'use strict';
-/* ===== ФИКС: экран не съезжает после клавиатуры (iOS Safari) ===== */
+/* ===== ФИКС v2: экран НЕ съезжает вообще ===== */
 (function(){
+/* ---------- 1. ЖЁСТКАЯ БЛОКИРОВКА СДВИГА ---------- */
+const lock=()=>{if(window.scrollY||window.scrollX)window.scrollTo(0,0);
+if(document.documentElement.scrollTop)document.documentElement.scrollTop=0;
+if(document.body.scrollTop)document.body.scrollTop=0;};
+window.addEventListener('scroll',lock,{passive:true,capture:true});
+document.addEventListener('scroll',lock,{passive:true,capture:true});
 const vv=window.visualViewport;
-function resetScroll(){
-if(window.scrollY!==0||window.scrollX!==0)window.scrollTo(0,0);
-const b=document.body,st=document.querySelector('.stage');
-if(b&&b.scrollTop)b.scrollTop=0;
-if(st&&st.scrollTop)st.scrollTop=0;
-}
-function applyVV(){
-resetScroll();
-const app=document.getElementById('app');
+function fitVV(){
+lock();
+const app=document.getElementById('app'),scr=document.querySelector('.screen');
 if(!app)return;
-const scr=document.querySelector('.screen');
 if(vv&&innerWidth<820){
-const h=Math.round(vv.height);
+const h=Math.round(vv.height+(vv.offsetTop||0));
 app.style.height=h+'px';
 if(scr)scr.style.height=h+'px';
-const off=Math.round(vv.offsetTop||0);
-app.style.transform=off?('translateY('+off+'px)'):'';
-}else{
-app.style.height='';app.style.transform='';
-if(scr)scr.style.height='';
-}
+app.style.transform='';
+}else{app.style.height='';app.style.transform='';if(scr)scr.style.height='';}
 const pad=document.getElementById('sesPad'),body=document.getElementById('sesBody');
-if(pad&&body&&!pad.classList.contains('hide')){
-requestAnimationFrame(function(){body.style.bottom=pad.offsetHeight+'px';});
+if(pad&&body&&!pad.classList.contains('hide'))requestAnimationFrame(()=>{body.style.bottom=pad.offsetHeight+'px';});
 }
+if(vv){vv.addEventListener('resize',fitVV);vv.addEventListener('scroll',fitVV);}
+window.addEventListener('resize',fitVV);
+window.addEventListener('orientationchange',()=>setTimeout(fitVV,300));
+setInterval(lock,400);
+
+/* ---------- 2. СВОЯ БУКВЕННАЯ КЛАВИАТУРА ---------- */
+let TXT={shift:true,val:'',lat:false};
+const ROWS_LO=[['й','ц','у','к','е','н','г','ш','щ','з','х'],['ф','ы','в','а','п','р','о','л','д','ж','э'],['я','ч','с','м','и','т','ь','б','ю']];
+const ROWS_UP=[['Й','Ц','У','К','Е','Н','Г','Ш','Щ','З','Х'],['Ф','Ы','В','А','П','Р','О','Л','Д','Ж','Э'],['Я','Ч','С','М','И','Т','Ь','Б','Ю']];
+const ROWS_LAT_LO=[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['z','x','c','v','b','n','m']];
+const ROWS_LAT_UP=[['Q','W','E','R','T','Y','U','I','O','P'],['A','S','D','F','G','H','J','K','L'],['Z','X','C','V','B','N','M']];
+function txtRows(){
+if(TXT.lat)return TXT.shift?ROWS_LAT_UP:ROWS_LAT_LO;
+return TXT.shift?ROWS_UP:ROWS_LO;
 }
-if(vv){vv.addEventListener('resize',applyVV);vv.addEventListener('scroll',applyVV);}
-window.addEventListener('resize',applyVV);
-window.addEventListener('orientationchange',function(){setTimeout(applyVV,300);});
-document.addEventListener('focusout',function(e){
-const t=e.target;
-if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA')){
-setTimeout(function(){resetScroll();applyVV();},100);
-setTimeout(resetScroll,350);
+function txtPadHTML(){
+const rows=txtRows().map(r=>'<div class="tk-row">'+r.map(k=>'<button class="tk-key" data-act="tk" data-k="'+k+'">'+k+'</button>').join('')+'</div>').join('');
+return '<div class="tk-wrap">'+rows
++'<div class="tk-row">'
++'<button class="tk-key wide'+(TXT.shift?' on':'')+'" data-act="tk-shift">⇧</button>'
++'<button class="tk-key wide'+(TXT.lat?' on':'')+'" data-act="tk-lat">'+(TXT.lat?'РУС':'ENG')+'</button>'
++'<button class="tk-key space" data-act="tk" data-k=" ">пробел</button>'
++'<button class="tk-key wide" data-act="tk" data-k="⌫">⌫</button>'
++'</div></div>';
 }
-});
-window.addEventListener('scroll',resetScroll,{passive:true});
-document.addEventListener('touchmove',function(e){
-let n=e.target;
-while(n&&n!==document.body){
-if(n.classList&&(n.classList.contains('scroller')||n.classList.contains('screen-tab')||n.classList.contains('ses-body')||n.classList.contains('sheet-body'))||n.tagName==='TEXTAREA')return;
-n=n.parentElement;
+function paintTxtPad(){
+const pad=document.getElementById('sesPad');
+if(!pad||!window.S||S.answered)return;
+const t=S.q[S.idx].t;
+if(t.type!=='text')return;
+const util='<div class="pad-util"><button data-act="tk-clear">стереть всё</button></div>';
+pad.innerHTML=util+txtPadHTML()+'<div class="ses-actions"><button class="btn btn-ghost" style="flex:.8" data-act="skip">Не знаю</button><button class="btn btn-acc'+(TXT.val.trim()?'':' dis')+'" style="flex:1.6" id="checkBtn" data-act="check">Проверить</button></div>';
+pad.classList.remove('hide');
+const body=document.getElementById('sesBody');
+if(body)requestAnimationFrame(()=>{body.style.bottom=pad.offsetHeight+'px';});
 }
-e.preventDefault();
-},{passive:false});
-applyVV();
+function syncTxtField(){
+const f=document.getElementById('ansTxt');
+if(f){f.textContent=TXT.val||'Введи ответ кнопками ниже';f.classList.toggle('ph',!TXT.val);}
+if(window.S){S.input=TXT.val;}
+const b=document.getElementById('checkBtn');
+if(b)b.classList.toggle('dis',!TXT.val.trim());
+}
+function upgradeTextField(){
+const inp=document.getElementById('ansInp');
+if(!inp||inp.dataset.upgraded)return;
+const disp=document.createElement('div');
+disp.className='ans-display ph';
+disp.id='ansTxt';
+disp.textContent='Введи ответ кнопками ниже';
+inp.replaceWith(disp);
+disp.dataset.upgraded='1';
+TXT.val='';TXT.shift=true;
+paintTxtPad();
+}
+const mo=new MutationObserver(()=>{upgradeTextField();});
+setTimeout(()=>{const main=document.getElementById('pushLayer');if(main)mo.observe(main,{childList:true,subtree:true});fitVV();},600);
+document.addEventListener('click',e=>{
+const el=e.target.closest('[data-act]');
+if(!el)return;
+const act=el.dataset.act;
+if(act==='tk'){
+const k=el.dataset.k;
+if(k==='⌫')TXT.val=TXT.val.slice(0,-1);
+else if(TXT.val.length<40)TXT.val+=k;
+if(TXT.shift&&k!==' '){TXT.shift=false;paintTxtPad();}
+syncTxtField();
+if(window.sfx)sfx('key');
+e.stopPropagation();
+}else if(act==='tk-shift'){TXT.shift=!TXT.shift;paintTxtPad();syncTxtField();e.stopPropagation();}
+else if(act==='tk-lat'){TXT.lat=!TXT.lat;paintTxtPad();syncTxtField();e.stopPropagation();}
+else if(act==='tk-clear'){TXT.val='';paintTxtPad();syncTxtField();e.stopPropagation();}
+},true);
+const oldCheck=window.check;
+if(typeof oldCheck==='function'){
+window.check=function(skip){
+oldCheck(skip);
+const pad=document.getElementById('sesPad');
+if(pad){pad.classList.add('hide');pad.innerHTML='';}
+const body=document.getElementById('sesBody');
+if(body)body.style.bottom='0px';
+lock();
+};
+}
 })();
 </script>
 </body>
